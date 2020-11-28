@@ -7,14 +7,19 @@ use GuzzleHttp\Client;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Redis;
 use Intervention\Image\Image;
 
 class ResizeImage implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    /** @var int */
+    private $allow = 100;
+    /** @var int */
+    private $every = 1;
 
     /** @var string */
     private $uuid;
@@ -46,15 +51,35 @@ class ResizeImage implements ShouldQueue
      */
     public function handle()
     {
+        Redis::throttle(class_basename($this))
+            ->allow($this->allow)
+            ->every($this->every)
+            ->then(function () {
+                if (Redis::set('image-' . $this->uuid, getmypid(), 'EX', 10 * 60, 'NX')) {
+                    $this->process();
+                    Redis::del('image-' . $this->uuid);
+                } else {
+                    $this->release($this->allow);
+                }
+            }, function () {
+                $this->release($this->allow);
+            });
+    }
 
+    private function process()
+    {
         array_map(function (string $path) {
-            $image = \Image::make(\Storage::disk('shared')->get($path))->resize(100, 100);
+            try {
+                $image = \Image::make(\Storage::disk('shared')->get($path))->resize(100, 100);
 
-            if ($this->webhook) {
-                $this->sendImage($image);
-            } else {
-                // TODO store file somewhere temporary
-                \Storage::disk('shared')->put($path, $image->stream());
+                if ($this->webhook) {
+                    $this->sendImage($image);
+                } else {
+                    // TODO store file somewhere temporary
+                    \Storage::disk('shared')->put($path, $image->stream());
+                }
+            } finally {
+                \Storage::disk('shared')->delete($path);
             }
         }, \Storage::disk('shared')->files($this->uuid, false));
     }
@@ -62,17 +87,25 @@ class ResizeImage implements ShouldQueue
     private function client()
     {
         if (!$this->client) {
-            $this->client = new Client;
+            $this->client = new Client([
+                'verify' => false,
+            ]);
         }
+
+        return $this->client;
     }
 
     private function sendImage(Image $image)
     {
-        $this->client->postAsync($this->webhook, [
-            'body' => [
+        $request = $this->client()->postAsync($this->webhook, [
+            'form_params' => [
                 'uuid' => $this->uuid,
                 'image' => $image->stream(),
             ],
-        ]);
+        ])->then();
+
+        $request->wait();
+
+        dump(['return' => $request]);
     }
 }
