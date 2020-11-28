@@ -16,5 +16,5 @@ return [
     ],
 
     'max-image-size' => env('RESIZER_MAX_IMAGE_SIZE', 3000),
-    'abandon-job-at' => '+1 hour',
+    'abandon-job-at' => env('RESIZER_MAX_JOB_LIFETIME', '+1 hour'),
 ];

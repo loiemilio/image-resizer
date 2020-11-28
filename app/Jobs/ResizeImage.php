@@ -39,6 +39,11 @@ class ResizeImage implements ShouldQueue
         $this->uuid = $uuid;
         $this->webhook = $request->input('webhook');
 
+        // For every image in the {uuid} folder set the expiry time
+        Redis::set('image-exp-' . $this->uuid, $expireTime = Carbon::parse(
+            config('resizer.abandon-job-at')
+        ));
+
         collect($request->input('images'))
             ->map(function (array $image) {
                 \Storage::disk(config('resizer.disk'))->put(vsprintf('%s/%s', [
@@ -60,11 +65,6 @@ class ResizeImage implements ShouldQueue
     {
         collect(\Storage::disk(config('resizer.disk'))->files($this->uuid, false))
             ->mapWithKeys(function (string $path) {
-                // For every image in the {uuid} folder set the expiry time
-                Redis::set('image-exp-' . $this->uuid, $expireTime = Carbon::parse(
-                    config('resizer.abandon-job-at')
-                ));
-
                 // Create the resized version
                 $image = \Image::make(\Storage::disk(config('resizer.disk'))->get($path))->resize(100, 100);
 
@@ -75,12 +75,12 @@ class ResizeImage implements ShouldQueue
                 }
 
                 // Otherwise let's create the relevant Redis keys
-                Redis::set('image-done-' . $this->uuid, 1);
+                Redis::set('image-done-' . $this->uuid, true);
 
                 // and replace the original image with the resized one
                 \Storage::disk(config('resizer.disk'))->put($path, $image->stream());
 
-                return [$path => $expireTime];
+                return [$path => true];
             })->when($this->webhook, function (Collection $files) {
                 // We must call the webhook back
                 // The payload of our request has the job uuid and the list of images
