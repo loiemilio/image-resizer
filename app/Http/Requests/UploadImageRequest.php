@@ -6,12 +6,6 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class UploadImageRequest extends FormRequest
 {
-    private $uuid;
-
-    private $mimetypes = [
-        'image/png',
-    ];
-
     /**
      * Get the validation rules that apply to the request.
      *
@@ -19,8 +13,6 @@ class UploadImageRequest extends FormRequest
      */
     public function rules()
     {
-        $this->uuid = \Str::uuid();
-
         return [
             'images' => [
                 'required',
@@ -46,7 +38,7 @@ class UploadImageRequest extends FormRequest
                     }
 
                     $info = new \finfo(FILEINFO_MIME_TYPE);
-                    if (!in_array($info->buffer($payload), $this->mimetypes, true)) {
+                    if (!in_array($info->buffer($payload), config('resizer.allowed-mimetypes'), true)) {
                         $fail('The file must be an image.');
                     }
                 },
