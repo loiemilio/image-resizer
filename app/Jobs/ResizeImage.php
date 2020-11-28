@@ -75,11 +75,11 @@ class ResizeImage implements ShouldQueue
                 if ($this->webhook) {
                     $this->sendImage($image);
                 } else {
-                    // TODO store file somewhere temporary
+                    Redis::set('image-exp-' . $this->uuid, \Carbon\Carbon::parse('+1 hour'));
                     \Storage::disk('shared')->put($path, $image->stream());
                 }
             } finally {
-                \Storage::disk('shared')->delete($path);
+//                \Storage::disk('shared')->delete($path);
             }
         }, \Storage::disk('shared')->files($this->uuid, false));
     }
@@ -102,7 +102,7 @@ class ResizeImage implements ShouldQueue
                 'uuid' => $this->uuid,
                 'image' => $image->stream(),
             ],
-        ])->then();
+        ]);
 
         $request->wait();
 

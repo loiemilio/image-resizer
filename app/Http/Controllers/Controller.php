@@ -15,7 +15,7 @@ class Controller extends BaseController
     public function upload(UploadImageRequest $request)
     {
         $uuid = \Str::uuid();
-        ResizeImage::dispatch($uuid, $request);
+        ResizeImage::dispatchNow($uuid, $request);
 
 
         return response()->json([
