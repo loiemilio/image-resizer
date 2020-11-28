@@ -22,7 +22,7 @@ class UploadImageRequest extends FormRequest
             'images.*.name' => [
                 'required',
                 'distinct',
-                'not_regex:/[\\/]/',
+                'not_regex:/[\\/:]/',
                 'max:256',
             ],
             'images.*.data' => [

@@ -52,8 +52,8 @@ class ShowImagesTest extends TestCase
     public function itReturnsTheImages(): void
     {
         $uuid = \Str::uuid();
-        \Storage::fake('shared');
-        \Storage::disk('shared')->put(vsprintf('%s/%s', [
+        \Storage::fake(config('resizer.disk'));
+        \Storage::disk(config('resizer.disk'))->put(vsprintf('%s/%s', [
             $uuid,
             'a.jpg',
         ]), file_get_contents(storage_path('tests/a.jpg')));
@@ -76,8 +76,8 @@ class ShowImagesTest extends TestCase
     public function itCleanupsAfterShowing(): void
     {
         $uuid = \Str::uuid();
-        \Storage::fake('shared');
-        \Storage::disk('shared')->put(vsprintf('%s/%s', [
+        \Storage::fake(config('resizer.disk'));
+        \Storage::disk(config('resizer.disk'))->put(vsprintf('%s/%s', [
             $uuid,
             'a.jpg',
         ]), file_get_contents(storage_path('tests/a.jpg')));
@@ -89,7 +89,7 @@ class ShowImagesTest extends TestCase
 
         self::assertNull(\Redis::get('image-exp-' . $uuid));
         self::assertNull(\Redis::get('image-done-' . $uuid));
-        self::assertFalse(\Storage::disk('shared')->exists($uuid));
+        self::assertFalse(\Storage::disk(config('resizer.disk'))->exists($uuid));
 
         $this->get('/' . $uuid)->assertStatus(404);
     }

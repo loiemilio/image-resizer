@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'disk' => env('RESIZER_DISK', 'shared'),
+
     'throttling' => [
         'allow' => env('RESIZER_THROTTLING_ALLOW', 100),
         'every' => env('RESIZER_THROTTLING_EVERY', 10),
@@ -13,6 +15,6 @@ return [
         'image/jpeg',
     ],
 
-    'max-image-size' => 3000,
+    'max-image-size' => env('RESIZER_MAX_IMAGE_SIZE', 3000),
     'abandon-job-at' => '+1 hour',
 ];

@@ -63,11 +63,11 @@ class Controller extends BaseController
         // The job was processed, return the full list of images from the storage in the form of {name, data} objects
         // Where the data is base64_encoded
         return response()->json([
-            'images' => collect(\Storage::disk('shared')->files($uuid, false))
+            'images' => collect(\Storage::disk(config('resizer.disk'))->files($uuid, false))
                 ->map(function (string $path) use ($uuid) {
                     return [
                         'name' => \Str::after($path, $uuid . '/'),
-                        'data' => base64_encode(\Storage::disk('shared')->get($path)),
+                        'data' => base64_encode(\Storage::disk(config('resizer.disk'))->get($path)),
                     ];
                 })->whenNotEmpty(function (Collection $paths) use ($uuid) {
                     // Having found images it's time to delete them from the storage
@@ -76,6 +76,13 @@ class Controller extends BaseController
                     return $paths;
                 })->all(),
         ]);
+    }
+
+    public function destroy(string $uuid)
+    {
+        DeleteImages::dispatchNow($uuid);
+
+        return response()->noContent();
     }
 
     /**

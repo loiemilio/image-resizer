@@ -41,7 +41,7 @@ class ResizeImage implements ShouldQueue
 
         collect($request->input('images'))
             ->map(function (array $image) {
-                \Storage::disk('shared')->put(vsprintf('%s/%s', [
+                \Storage::disk(config('resizer.disk'))->put(vsprintf('%s/%s', [
                     $this->uuid,
                     data_get($image, 'name'),
                 ]), base64_decode(data_get($image, 'data')));
@@ -58,7 +58,7 @@ class ResizeImage implements ShouldQueue
      */
     public function handle(): void
     {
-        collect(\Storage::disk('shared')->files($this->uuid, false))
+        collect(\Storage::disk(config('resizer.disk'))->files($this->uuid, false))
             ->mapWithKeys(function (string $path) {
                 // For every image in the {uuid} folder set the expiry time
                 Redis::set('image-exp-' . $this->uuid, $expireTime = Carbon::parse(
@@ -66,7 +66,7 @@ class ResizeImage implements ShouldQueue
                 ));
 
                 // Create the resized version
-                $image = \Image::make(\Storage::disk('shared')->get($path))->resize(100, 100);
+                $image = \Image::make(\Storage::disk(config('resizer.disk'))->get($path))->resize(100, 100);
 
                 if ($this->webhook) {
                     // When a webhook is provided then we don't need to signal that the job has been completed
@@ -78,7 +78,7 @@ class ResizeImage implements ShouldQueue
                 Redis::set('image-done-' . $this->uuid, 1);
 
                 // and replace the original image with the resized one
-                \Storage::disk('shared')->put($path, $image->stream());
+                \Storage::disk(config('resizer.disk'))->put($path, $image->stream());
 
                 return [$path => $expireTime];
             })->when($this->webhook, function (Collection $files) {
@@ -99,7 +99,7 @@ class ResizeImage implements ShouldQueue
                 $this->client->postJson($this->webhook, $payload);
 
                 // And can now safely delete the {uuid} directory
-                \Storage::disk('shared')->deleteDirectory($this->uuid);
+                \Storage::disk(config('resizer.disk'))->deleteDirectory($this->uuid);
             });
     }
 }

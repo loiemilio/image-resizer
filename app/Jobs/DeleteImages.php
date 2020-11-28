@@ -31,7 +31,7 @@ class DeleteImages implements ShouldQueue
      */
     public function handle(): void
     {
-        \Storage::disk('shared')->deleteDirectory($this->uuid);
+        \Storage::disk(config('resizer.disk'))->deleteDirectory($this->uuid);
         \Redis::del('image-exp-' . $this->uuid);
         \Redis::del('image-done-' . $this->uuid);
     }

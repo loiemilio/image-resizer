@@ -1,61 +1,159 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400"></a></p>
+# Image Resizer
 
-<p align="center">
-<a href="https://travis-ci.org/laravel/framework"><img src="https://travis-ci.org/laravel/framework.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## What does it do?
 
-## About Laravel
+This image resizer is JSON-based API service capable of receiving a list of images and resize (downscale or upscale) them to 100x100 pixels.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+The resizing process is asynchronous and the API immediately returns the UUID of the assigned job. 
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+The UUID can be used to check the job status, retrieve the resized images or cancel the job.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+A worker takes care of jobs queue and either sends the resized images to a webhook specified within the request or stores them for a certain amount of time.
 
-## Learning Laravel
+In this second instance the application acts as an ephemeral file system deleting the resized images once they have been retrieved or have expired.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Run it
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 1500 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+1. [Install Docker Compose](https://docs.docker.com/compose/install/)
 
-## Laravel Sponsors
+2. [Install Composer](https://getcomposer.org/download/)
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell).
+3. Install php dependencies 
+	
+	`composer install`
+	
+4. Build and start the containers
 
-### Premium Partners
+   `docker-compose up` or `docker-compose up -d` for a detached lauch
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[Many](https://www.many.co.uk)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- **[DevSquad](https://devsquad.com)**
-- **[OP.GG](https://op.gg)**
+5. Send your requests to 
 
-## Contributing
+   `http://127.0.0.1:8081` 
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Use it
 
-## Code of Conduct
+There are only 3 endpoints:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### `POST /`
 
-## Security Vulnerabilities
+It's the way of sending the images to resize. 
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+The request payload must be an object with at least an array property named `images`. 
 
-## License
+Every entry of this array represents an image and is comprised of two string properties:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+- **`name`** It's the unique identified of the image for this request, it can't be reused across two or more images in the same request. It should not contains slashes `/`,`\` or colons `:`
+- **`data`** It's the base64 encoded image.
+
+If you wish to receive a webhook request when the job has been processed you can specify add an url field named `webhook` to the payload. 
+
+So that a valid request looks something like:
+
+```json
+{
+  "images": [
+    {"name": "image.jpg", "data": "\/9j\/4AAQSk....MflFbbx\/\/9k="},
+    {"name": "I_AM_A_VALID_NAME", "data": "\/9j\/4AAQ4....SIks1d\/\/9k="},
+  ]
+}
+```
+
+or this:
+
+```json
+{
+	"webhook": "https://myhost/mypath"
+  "images": [
+    {"name": "image.jpg", "data": "\/9j\/4AAQSk....MflFbbx\/\/9k="},
+    {"name": "I_AM_A_VALID_NAME", "data": "\/9j\/4AAQ4....SIks1d\/\/9k="},
+  ]
+}
+```
+
+The application simply returns the UUID of the job associated to the request:
+
+```json
+{
+	"uuid":"ab0e700d-cbfb-467e-a38a-14291ca3b51f"
+}
+```
+
+
+
+<hr>
+
+### `GET /{uuid}`
+
+It allows to monitor the status of a job. A request to this endpoint can also be used to retrieve the resized images if no webhook parameters has been specified in the originating request payload.
+
+Possible responses are:
+
+- *202 Images not yet processed.* when the job hasn't been yet completed.
+- *404 UUID not found.* when the job UUID is unknown or it has failed or its images have expired.
+- *200 Success.* when the job completed successfully and the image are ready
+
+In case of *200 Success.* the response payload is specular to the originating request with the images `data` fields now being the base64 encoded version of the resized images and with the addition of the UUID of the job.
+
+```json
+{
+	"uuid": "ab0e700d-cbfb-467e-a38a-14291ca3b51f"
+  "images": [
+    {"name": "image.jpg", "data": "\/9j\/4AAQSk....MflFbbx\/\/9k="},
+    {"name": "I_AM_A_VALID_NAME", "data": "\/9j\/4AAQ4....SIks1d\/\/9k="},
+  ]
+}
+```
+
+<hr>
+
+### `DELETE /{uuid}`
+
+It allows to cancel a job. If the job hasn't been yet processed it also deletes the original images from the storage. Otherwise it deletes the resized images if not yet retrieved.
+
+The only possible response is:
+
+*204 No Content*
+
+<hr>
+
+## Test it
+
+Once the app container has started it's possible to run 
+
+## Configure it
+
+The application makes use of the following services:
+
+- **[nginx](https://www.nginx.com/)** as the web server running on port `8081`
+- **[Redis](https://redis.io/)** to store some run-time variables and manage the job queues. It runs on port `6380`
+
+Ports in use by these services can be configured in `docker-compose.yml` before starting the containers.
+
+### .env
+
+The application behaviour can be altered playing with the following environment variables:
+
+**`RESIZER_DISK`**
+
+ The application is based on Laravel, it uses the Laravel's concept of filesystems to store the received and resized images. You can configure your preferred disk (local, S3, GDrive) in `config/filesystems.php` `disks` array and provide its name in `RESIZER_DISK` envvar in order to make the Image Resizer use it.
+
+**`RESIZER_THROTTLING_ALLOW`** 
+
+**`RESIZER_THROTTLING_EVERY`** 
+
+The requests for new resizes are throttled to `RESIZER_THROTTLING_ALLOW` requests every `RESIZER_THROTTLING_EVERY` minutes per sender IP. 
+
+Both parameters are integer.
+
+**`RESIZER_MAX_IMAGE_SIZE`**
+
+It is the maxium file size in Kb for a single image.
+
+
+
+### Laravel configuration
+
+The application uses the Laravel queues. The `QUEUE_CONNECTION` is set to `Redis` by default.
+
+
+

@@ -18,7 +18,7 @@ class ResizeImageTest extends TestCase
      */
     public function resizesTheImages(): void
     {
-        \Storage::fake('shared');
+        \Storage::fake(config('resizer.disk'));
 
         ResizeImage::dispatchNow($uuid = \Str::uuid(), new UploadImageRequest([
             'images' => [
@@ -26,10 +26,10 @@ class ResizeImageTest extends TestCase
             ],
         ]));
 
-        self::assertTrue(\Storage::disk('shared')->exists($uuid));
+        self::assertTrue(\Storage::disk(config('resizer.disk'))->exists($uuid));
 
         $originalImage = file_get_contents(storage_path('tests/a.jpg'));
-        $newImage = \Storage::disk('shared')->get(vsprintf('%s/%s', [
+        $newImage = \Storage::disk(config('resizer.disk'))->get(vsprintf('%s/%s', [
             $uuid,
             'a.jpg',
         ]));
@@ -46,7 +46,7 @@ class ResizeImageTest extends TestCase
      */
     public function callsBackTheWebhookWhenDone(): void
     {
-        \Storage::fake('shared');
+        \Storage::fake(config('resizer.disk'));
 
         ResizeImage::dispatchNow($uuid = \Str::uuid(), new UploadImageRequest([
             'webhook' => $webhook = 'https://127.0.0.1',
