@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -45,13 +44,13 @@ class UploadImagesTest extends TestCase
      * @test
      * @return void
      */
-    public function validationErrorWhenNoImageProvided(): void
+    public function validationErrorWhenNoImagesProvided(): void
     {
         $response = $this->post('/');
         $response->assertStatus(422);
         $response->assertJsonFragment([
-            'image' => [
-                'Provide one between image and images parameters',
+            'images' => [
+                'Provide at least one image.',
             ],
         ]);
     }
@@ -63,38 +62,35 @@ class UploadImagesTest extends TestCase
     public function validationErrorWhenInvalidFileProvided(): void
     {
         $response = $this->post('/', [
-            'image' => '1234',
+            'images' => ['1234'],
         ]);
         $response->assertStatus(422);
         $response->assertJsonFragment([
-            'image' => [
-                'The file must be an image.',
-            ],
-        ]);
-
-        $response = $this->post('/', [
-            'images' => '1234',
-        ]);
-        $response->assertStatus(422);
-        $response->assertJsonFragment([
-            'images' => [
-                'The list of files must be an array.',
+            'images.0.data' => [
+                'Provide a base64 encoded image.',
             ],
         ]);
 
         $response = $this->post('/', [
             'images' => [
-                'invalid-file',
-                UploadedFile::fake()->create('a.txt'),
-                UploadedFile::fake()->image('a.png'),
+                ['data' => '1235'],
             ],
         ]);
         $response->assertStatus(422);
         $response->assertJsonFragment([
-            'images.0' => [
-                'The file must be an image.',
+            'images.0.name' => [
+                'Provide a name for every image.',
             ],
-            'images.1' => [
+        ]);
+
+        $response = $this->post('/', [
+            'images' => [
+                ['name' => 'test.jpg', 'data' => '1235'],
+            ],
+        ]);
+        $response->assertStatus(422);
+        $response->assertJsonFragment([
+            'images.0.data' => [
                 'The file must be an image.',
             ],
         ]);
@@ -109,14 +105,13 @@ class UploadImagesTest extends TestCase
         config(['resizer.max-image-size' => $kb = 200]);
 
         $this->post('/', [
-            'image' => UploadedFile::fake()->createWithContent(
-                'a.png',
-                file_get_contents(storage_path('tests/c.png'))
-            ),
+            'images' => [
+                ['name' => 'test.jpg', 'data' => base64_encode(file_get_contents(storage_path('tests/c.png')))],
+            ],
         ])
             ->assertStatus(422)
             ->assertJsonFragment([
-                'image' => [
+                'images.0.data' => [
                     'The file may not be greater than ' . $kb . ' kilobytes.',
                 ],
             ]);
@@ -129,10 +124,9 @@ class UploadImagesTest extends TestCase
     public function itReturnsAnUUIDWhenJobQueued(): void
     {
         $this->post('/', [
-            'image' => UploadedFile::fake()->createWithContent(
-                'a.png',
-                file_get_contents(storage_path('tests/c.png'))
-            ),
+            'images' => [
+                ['name' => 'test.jpg', 'data' => base64_encode(file_get_contents(storage_path('tests/c.png')))],
+            ],
         ])
             ->assertStatus(200)
             ->assertJsonStructure([

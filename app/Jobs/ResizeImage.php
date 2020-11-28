@@ -37,23 +37,15 @@ class ResizeImage implements ShouldQueue
         $this->uuid = $uuid;
         $this->webhook = $request->input('webhook');
 
-        if (!$files = $request->file('images')) {
-            $files = [$request->file('image')];
-        }
-
-        Redis::set('image-exp-' . $this->uuid, $expireTime = Carbon::parse(
-            config('resizer.abandon-job-at')
-        ));
-
-        collect($files)->each(function (UploadedFile $file) {
-            \Storage::disk('shared')->put(
-                vsprintf('%s/%s', [
+        collect($request->input('images'))
+            ->map(function (array $image) {
+                \Storage::disk('shared')->put(vsprintf('%s/%s', [
                     $this->uuid,
-                    $file->getClientOriginalName(),
-                ]),
-                file_get_contents($file),
-            );
-        });
+                    data_get($image, 'name'),
+                ]), base64_decode(data_get($image, 'data')));
+
+                return data_get($image, 'name');
+            })->all();
     }
 
     /**

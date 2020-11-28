@@ -6,6 +6,12 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class UploadImageRequest extends FormRequest
 {
+    private $uuid;
+
+    private $mimetypes = [
+        'image/png',
+    ];
+
     /**
      * Get the validation rules that apply to the request.
      *
@@ -13,20 +19,37 @@ class UploadImageRequest extends FormRequest
      */
     public function rules()
     {
+        $this->uuid = \Str::uuid();
+
         return [
-            'image' => [
-                'required_without:images',
-                'image',
-                'max:' . config('resizer.max-image-size'),
-            ],
             'images' => [
-                'required_without:image',
+                'required',
                 'array',
+                'min:1',
             ],
-            'images.*' => [
-                'required_without:image',
-                'image',
-                'max:' . config('resizer.max-image-size'),
+            'images.*.name' => [
+                'required',
+                'distinct',
+                'not_regex:/[\\/]/',
+                'max:256',
+            ],
+            'images.*.data' => [
+                'required',
+                function ($attribute, $value, $fail) {
+                    $payload = base64_decode($value);
+                    if (!$payload) {
+                        $fail('The data must be a base64_encoded string.');
+                    }
+
+                    if (strlen($payload) > 1024 * ($kb = config('resizer.max-image-size'))) {
+                        $fail('The file may not be greater than ' . $kb . ' kilobytes.');
+                    }
+
+                    $info = new \finfo(FILEINFO_MIME_TYPE);
+                    if (!in_array($info->buffer($payload), $this->mimetypes, true)) {
+                        $fail('The file must be an image.');
+                    }
+                },
             ],
             'webhook' => [
                 'sometimes',
@@ -38,17 +61,12 @@ class UploadImageRequest extends FormRequest
     public function messages()
     {
         return [
-            'image.required_without' => 'Provide one between image and images parameters',
-            'images.*.required_without' => 'Provide one between image and images parameters',
-        ];
-    }
+            'images.required' => 'Provide at least one image.',
+            'images.min' => 'Provide at least one image.',
 
-    public function attributes()
-    {
-        return [
-            'image' => 'file',
-            'images.*' => 'file',
-            'images' => 'list of files',
+            'images.*.name.required' => 'Provide a name for every image.',
+            'images.*.name.distinct' => 'Provide a different name for every image.',
+            'images.*.data.required' => 'Provide a base64 encoded image.',
         ];
     }
 }
