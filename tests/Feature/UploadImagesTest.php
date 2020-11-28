@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\ResizeImage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -113,6 +114,9 @@ class UploadImagesTest extends TestCase
      */
     public function itReturnsAnUUIDWhenJobQueued(): void
     {
+        \Queue::fake();
+        \Queue::assertNothingPushed();
+
         $this->post('/', [
             'images' => [
                 ['name' => 'test.jpg', 'data' => base64_encode(file_get_contents(storage_path('tests/c.png')))],
@@ -122,6 +126,8 @@ class UploadImagesTest extends TestCase
             ->assertJsonStructure([
                 'uuid',
             ]);
+        
+        \Queue::assertPushed(ResizeImage::class);
     }
 
 }
