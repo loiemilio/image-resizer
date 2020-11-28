@@ -18,11 +18,6 @@ class ResizeImage implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    /** @var int */
-    private $allow;
-    /** @var int */
-    private $every;
-
     /** @var string */
     private $uuid;
 
@@ -31,11 +26,16 @@ class ResizeImage implements ShouldQueue
     /** @var AsyncClient|null */
     private $client;
 
+    /**
+     * ResizeImage constructor.
+     * @param string $uuid Unique identifier of the job
+     * @param UploadImageRequest $request The validated request made by the user, it contains an array of 'images'
+     * in the form of object {name, data} with data being a base64 version of the image
+     * @param AsyncClient|null $client Useful to extend the default client. If nothing provided an instance of a bare AsyncClient will be used
+     */
     public function __construct(string $uuid, UploadImageRequest $request, AsyncClient $client = null)
     {
-        $this->client = $client;
-        $this->allow = config('resizer.throttling.allow', 100);
-        $this->every = config('resizer.throttling.every', 1);
+        $this->client = $client ?? new AsyncClient;
 
         $this->uuid = $uuid;
         $this->webhook = $request->input('webhook');
@@ -59,18 +59,19 @@ class ResizeImage implements ShouldQueue
      */
     public function handle(): void
     {
+        //TODO is throttling necessary at this level?
         Redis::throttle(class_basename($this))
-            ->allow($this->allow)
-            ->every($this->every)
+            ->allow(config('resizer.throttling.allow'))
+            ->every(config('resizer.throttling.every'))
             ->then(function () {
                 if (Redis::set('image-' . $this->uuid, getmypid(), 'EX', 10 * 60, 'NX')) {
                     $this->process();
                     Redis::del('image-' . $this->uuid);
                 } else {
-                    $this->release($this->allow);
+                    $this->release(config('resizer.throttling.allow'));
                 }
             }, function () {
-                $this->release($this->allow);
+                $this->release(config('resizer.throttling.allow'));
             });
     }
 
@@ -82,46 +83,44 @@ class ResizeImage implements ShouldQueue
     {
         collect(\Storage::disk('shared')->files($this->uuid, false))
             ->mapWithKeys(function (string $path) {
-                $image = \Image::make(\Storage::disk('shared')->get($path))->resize(100, 100);
+                // For each image in the {uuid} folder create a resized version
+                $image = \Image::make(\Storage::disk('shared')->get($path))->resize(100);
 
                 if ($this->webhook) {
+                    // When a webhook is provided then we don't need to signal the job has been completed
+                    // or set an expiry time for the images, so we return
                     return [$path => $image];
                 }
 
+                // Otherwise let's create the relevant Redis keys
                 Redis::set('image-done-' . $this->uuid, 1);
                 Redis::set('image-exp-' . $this->uuid, $expireTime = Carbon::parse(
                     config('resizer.abandon-job-at')
                 ));
 
+                // and replace the original image with the resized one
                 \Storage::disk('shared')->put($path, $image->stream());
 
                 return [$path => $expireTime];
             })->when($this->webhook, function (Collection $files) {
+                // We must callback the webhook
+                // Let's construct the payload of our request with the uuid and the list of images
+                // The images are object {name, data} with the data being the base64 encoded version of them
                 $payload = [
                     'uuid' => $this->uuid,
                     'images' => $files->map(function ($image, $key) {
                         return [
                             'name' => \Str::after($key, $this->uuid . '/'),
-                            'content' => urlencode($image->stream()),
+                            'data' => urlencode($image->stream()),
                         ];
                     })->values()->all(),
                 ];
 
-                $this->client()->postJson($this->webhook, $payload);
+                // We tell our client to make the webhook call
+                $this->client->postJson($this->webhook, $payload);
 
+                // And can now safely delete the {uuid} directory
                 \Storage::disk('shared')->deleteDirectory($this->uuid);
             });
-    }
-
-    /**
-     * @return AsyncClient
-     */
-    private function client(): AsyncClient
-    {
-        if (!$this->client) {
-            $this->client = new AsyncClient;
-        }
-
-        return $this->client;
     }
 }

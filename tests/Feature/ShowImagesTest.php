@@ -26,7 +26,7 @@ class ShowImagesTest extends TestCase
         $response = $this->get('/' . \Str::uuid());
         $response->assertStatus(404)
             ->assertJsonFragment([
-                'message' => 'Job uuid not found.',
+                'message' => 'UUID not found.',
             ]);
     }
 
@@ -90,5 +90,7 @@ class ShowImagesTest extends TestCase
         self::assertNull(\Redis::get('image-exp-' . $uuid));
         self::assertNull(\Redis::get('image-done-' . $uuid));
         self::assertFalse(\Storage::disk('shared')->exists($uuid));
+
+        $this->get('/' . $uuid)->assertStatus(404);
     }
 }

@@ -17,7 +17,7 @@ class Handler extends ExceptionHandler
      */
     public function register()
     {
-        $this->reportable(function (ValidationException $e) {
+        $this->reportable(static function (ValidationException $e) {
         })->stop();
     }
 
@@ -36,7 +36,6 @@ class Handler extends ExceptionHandler
             ], $e->getStatusCode());
         }
 
-        dump($e->getMessage());
         return response()->json([
             'message' => 'Server Error',
         ], 500);

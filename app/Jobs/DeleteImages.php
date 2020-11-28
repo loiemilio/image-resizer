@@ -12,15 +12,11 @@ class DeleteImages implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    /**
-     * @var string
-     */
+    /** @var string */
     private $uuid;
 
     /**
-     * Create a new job instance.
-     *
-     * @return void
+     * @param string $uuid The uuid of the job. The images are in a folder with {uuid} as name
      */
     public function __construct(string $uuid)
     {
@@ -28,11 +24,12 @@ class DeleteImages implements ShouldQueue
     }
 
     /**
-     * Execute the job.
+     * Delete the folder named {uuid} from the storage, including its content
+     * Delete the expiry and job done keys from Redis
      *
      * @return void
      */
-    public function handle()
+    public function handle(): void
     {
         \Storage::disk('shared')->deleteDirectory($this->uuid);
         \Redis::del('image-exp-' . $this->uuid);

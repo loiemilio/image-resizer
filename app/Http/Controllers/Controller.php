@@ -44,21 +44,33 @@ class Controller extends BaseController
      *              @OA\Property(property="message", type="string", example="Images not yet processed"),
      *          ),
      *      ),
+     *     @OA\Response(
+     *          response=200,
+     *          description="Job processed, images ready",
+     *          @OA\JsonContent(
+     *              @OA\Property(property="images", type="array", example="[]"),
+     *          ),
+     *      ),
      * )
      */
     public function show(string $uuid)
     {
-        abort_unless(\Redis::get(vsprintf('image-exp-%s', [$uuid])), 404, 'Job uuid not found.');
+        // When the key image-exp-{uuid} is not found then either the job doesn't exist or it has failed/expired
+        abort_unless(\Redis::get(vsprintf('image-exp-%s', [$uuid])), 404, 'UUID not found.');
+        // Otherwise if the key image-done-{uuid} doesn't exist then the job hasn't been yet processed
         abort_unless(\Redis::get(vsprintf('image-done-%s', [$uuid])), 202, 'Images not yet processed.');
 
+        // The job was processed, return the full list of images from the storage in the form of {name, data} objects
+        // Where the data is base64_encoded
         return response()->json([
             'images' => collect(\Storage::disk('shared')->files($uuid, false))
                 ->map(function (string $path) use ($uuid) {
                     return [
                         'name' => \Str::after($path, $uuid . '/'),
-                        'content' => base64_encode(\Storage::disk('shared')->get($path)),
+                        'data' => base64_encode(\Storage::disk('shared')->get($path)),
                     ];
                 })->whenNotEmpty(function (Collection $paths) use ($uuid) {
+                    // Having found images it's time to delete them from the storage
                     DeleteImages::dispatchNow($uuid);
 
                     return $paths;

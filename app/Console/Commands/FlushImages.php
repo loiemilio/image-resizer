@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Jobs\DeleteImages;
 use Illuminate\Console\Command;
 
 use Illuminate\Support\Facades\Redis;
@@ -13,14 +14,14 @@ class FlushImages extends Command
      *
      * @var string
      */
-    protected $signature = 'images:flush {--time=1 minute ago}';
+    protected $signature = 'images:flush';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Deletes images older than `--time`';
+    protected $description = 'Delete all expired images';
 
     private $keyPrefix = 'image-exp-';
 
@@ -41,17 +42,17 @@ class FlushImages extends Command
      */
     public function handle()
     {
+        // For every existing Redis record of image expiring time
         collect(Redis::keys('*image-exp-*'))->each(function ($key) {
+            // Get the uuid and shorten key
+            $uuid = \Str::after($key, $this->keyPrefix);
             $key = vsprintf('%s%s', [
                 $this->keyPrefix,
                 \Str::after($key, $this->keyPrefix),
             ]);
-            if (now()->isAfter(Redis::get($key))) {
-                $uuid = \Str::after($key, $this->keyPrefix);
-                \Storage::disk('shared')->deleteDirectory($uuid);
-                Redis::del($key);
-                Redis::del('image-done-' . $uuid);
-            }
+
+            // If the images expired delete them
+            DeleteImages::dispatchIf(now()->isAfter(Redis::get($key)), $uuid);
         });
 
         return 0;
