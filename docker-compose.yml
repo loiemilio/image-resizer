@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: digitalocean.com/php
+    image: php:alpine
     container_name: app
     restart: unless-stopped
     tty: true
@@ -49,7 +49,7 @@ services:
 
   #Scheduler
   scheduler:
-    image: digitalocean.com/php
+    image: php:alpine
     command: "./.docker/bin/run-scheduler.sh"
     container_name: scheduler
     restart: unless-stopped
@@ -61,7 +61,7 @@ services:
 
   #Worker
   worker:
-    image: digitalocean.com/php
+    image: php:alpine
     command: "./.docker/bin/run-worker.sh"
     container_name: worker
     restart: unless-stopped
