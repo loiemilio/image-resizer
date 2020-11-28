@@ -2,15 +2,17 @@
 
 namespace App\Jobs;
 
+use App\Http\AsynClient;
 use App\Http\Requests\UploadImageRequest;
 use GuzzleHttp\Client;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Redis;
-use Intervention\Image\Image;
 
 class ResizeImage implements ShouldQueue
 {
@@ -23,8 +25,6 @@ class ResizeImage implements ShouldQueue
 
     /** @var string */
     private $uuid;
-    /** @var array|string[] */
-    private $request;
 
     /** @var string */
     private $webhook;
@@ -34,14 +34,21 @@ class ResizeImage implements ShouldQueue
     public function __construct(string $uuid, UploadImageRequest $request)
     {
         $this->uuid = $uuid;
-
-        $this->request = $request->input();
         $this->webhook = $request->input('webhook');
 
-        \Storage::disk('shared')->put(
-            $this->uuid,
-            $request->file('image'),
-        );
+        if (!$files = $request->file('images')) {
+            $files = [$request->file('image')];
+        }
+
+        collect($files)->each(function (UploadedFile $file) {
+            \Storage::disk('shared')->put(
+                vsprintf('%s/%s', [
+                    $this->uuid,
+                    $file->getClientOriginalName(),
+                ]),
+                file_get_contents($file),
+            );
+        });
     }
 
     /**
@@ -68,44 +75,32 @@ class ResizeImage implements ShouldQueue
 
     private function process()
     {
-        array_map(function (string $path) {
-            try {
+        collect(\Storage::disk('shared')->files($this->uuid, false))
+            ->mapWithKeys(function (string $path) {
                 $image = \Image::make(\Storage::disk('shared')->get($path))->resize(100, 100);
 
                 if ($this->webhook) {
-                    $this->sendImage($image);
-                } else {
-                    Redis::set('image-exp-' . $this->uuid, \Carbon\Carbon::parse('+1 hour'));
-                    \Storage::disk('shared')->put($path, $image->stream());
+                    return [$path => $image];
                 }
-            } finally {
-                //                \Storage::disk('shared')->delete($path);
-            }
-        }, \Storage::disk('shared')->files($this->uuid, false));
-    }
 
-    private function client()
-    {
-        if (!$this->client) {
-            $this->client = new Client([
-                'verify' => false,
-            ]);
-        }
+                Redis::set('image-exp-' . $this->uuid, $expireTime = \Carbon\Carbon::parse('+1 hour'));
+                \Storage::disk('shared')->put($path, $image->stream());
 
-        return $this->client;
-    }
+                return [$path => $expireTime];
+            })->when($this->webhook, function (Collection $files) {
+                $payload = [
+                    'uuid' => $this->uuid,
+                    'images' => $files->map(function ($image, $key) {
+                        return [
+                            'name' => \Str::after($key, $this->uuid . '/'),
+                            'content' => urlencode($image->stream()),
+                        ];
+                    })->values()->all(),
+                ];
 
-    private function sendImage(Image $image)
-    {
-        $request = $this->client()->postAsync($this->webhook, [
-            'form_params' => [
-                'uuid' => $this->uuid,
-                'image' => $image->stream(),
-            ],
-        ]);
+                AsynClient::postJson($this->webhook, $payload);
 
-        $request->wait();
-
-        dump(['return' => $request]);
+                \Storage::disk('shared')->deleteDirectory($this->uuid);
+            });
     }
 }

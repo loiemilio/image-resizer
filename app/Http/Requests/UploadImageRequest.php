@@ -27,7 +27,7 @@ class UploadImageRequest extends FormRequest
             'webhook' => [
                 'sometimes',
                 'url',
-            ]
+            ],
         ];
     }
 }
