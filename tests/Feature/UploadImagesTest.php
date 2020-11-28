@@ -34,16 +34,6 @@ class UploadImagesTest extends TestCase
      * @test
      * @return void
      */
-    public function notFoundOnInvalidUUID(): void
-    {
-        $response = $this->post('/invalid-uuid');
-        $response->assertStatus(404);
-    }
-
-    /**
-     * @test
-     * @return void
-     */
     public function validationErrorWhenNoImagesProvided(): void
     {
         $response = $this->post('/');
