@@ -21,6 +21,7 @@ class Controller extends BaseController
     public function show(string $uuid)
     {
         abort_unless(\Redis::get(vsprintf('image-exp-%s', [$uuid])), 404);
+        abort_unless(\Redis::get(vsprintf('image-done-%s', [$uuid])), 202, 'Images not yet processed');
 
         return response()->json([
             'images' => collect(\Storage::disk('shared')->files($uuid, false))

@@ -41,6 +41,10 @@ class ResizeImage implements ShouldQueue
             $files = [$request->file('image')];
         }
 
+        Redis::set('image-exp-' . $this->uuid, $expireTime = Carbon::parse(
+            config('resizer.abandon-job-at')
+        ));
+
         collect($files)->each(function (UploadedFile $file) {
             \Storage::disk('shared')->put(
                 vsprintf('%s/%s', [
@@ -89,9 +93,11 @@ class ResizeImage implements ShouldQueue
                     return [$path => $image];
                 }
 
+                Redis::set('image-done-' . $this->uuid, 1);
                 Redis::set('image-exp-' . $this->uuid, $expireTime = Carbon::parse(
                     config('resizer.abandon-job-at')
                 ));
+
                 \Storage::disk('shared')->put($path, $image->stream());
 
                 return [$path => $expireTime];

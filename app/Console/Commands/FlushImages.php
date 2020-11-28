@@ -41,7 +41,7 @@ class FlushImages extends Command
      */
     public function handle()
     {
-        collect(Redis::keys(vsprintf('*%s*', [$this->keyPrefix])))->each(function ($key) {
+        collect(Redis::keys('*image-exp-*'))->each(function ($key) {
             $key = vsprintf('%s%s', [
                 $this->keyPrefix,
                 \Str::after($key, $this->keyPrefix),
@@ -50,6 +50,7 @@ class FlushImages extends Command
                 $uuid = \Str::after($key, $this->keyPrefix);
                 \Storage::disk('shared')->deleteDirectory($uuid);
                 Redis::del($key);
+                Redis::del('image-done-' . $uuid);
             }
         });
 
