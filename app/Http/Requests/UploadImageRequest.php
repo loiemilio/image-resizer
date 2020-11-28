@@ -15,7 +15,12 @@ class UploadImageRequest extends FormRequest
     {
         return [
             'image' => [
-                'required',
+                'required_without:images',
+                'image',
+                'max:3000',
+            ],
+            'images.*' => [
+                'required_without:image',
                 'image',
                 'max:3000',
             ],

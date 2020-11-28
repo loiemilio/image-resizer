@@ -17,7 +17,7 @@ class Controller extends BaseController
     {
         abort_unless(\Redis::get(vsprintf('image-exp-%s', [$uuid])), 404);
 
-        $response = response()->json([
+        return response()->json([
             'images' => collect(\Storage::disk('shared')->files($uuid))->map(function ($path) {
                 return base64_encode(\Storage::disk('shared')->get($path));
             })->whenNotEmpty(function ($paths) use ($uuid) {
@@ -26,18 +26,18 @@ class Controller extends BaseController
                 return $paths;
             })->all(),
         ]);
-
-        return $response;
     }
 
     public function upload(UploadImageRequest $request)
     {
-        $uuid = \Str::uuid();
-        ResizeImage::dispatchNow($uuid, $request);
 
-        return response()->json([
-            'uuid' => $uuid,
-        ]);
+        dump($request->allFiles());
+//        $uuid = \Str::uuid();
+//        ResizeImage::dispatchNow($uuid, $request);
+//
+//        return response()->json([
+//            'uuid' => $uuid,
+//        ]);
     }
 
 }

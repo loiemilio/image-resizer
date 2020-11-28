@@ -41,7 +41,6 @@ class ResizeImage implements ShouldQueue
         \Storage::disk('shared')->put(
             $this->uuid,
             $request->file('image'),
-            '',
         );
     }
 
@@ -80,7 +79,7 @@ class ResizeImage implements ShouldQueue
                     \Storage::disk('shared')->put($path, $image->stream());
                 }
             } finally {
-//                \Storage::disk('shared')->delete($path);
+                //                \Storage::disk('shared')->delete($path);
             }
         }, \Storage::disk('shared')->files($this->uuid, false));
     }
