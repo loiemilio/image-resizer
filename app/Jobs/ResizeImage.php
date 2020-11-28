@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Http\AsynClient;
+use App\Http\AsyncClient;
 use App\Http\Requests\UploadImageRequest;
 use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
@@ -28,9 +28,12 @@ class ResizeImage implements ShouldQueue
 
     /** @var string */
     private $webhook;
+    /** @var AsyncClient|null */
+    private $client;
 
-    public function __construct(string $uuid, UploadImageRequest $request)
+    public function __construct(string $uuid, UploadImageRequest $request, AsyncClient $client = null)
     {
+        $this->client = $client;
         $this->allow = config('resizer.throttling.allow', 100);
         $this->every = config('resizer.throttling.every', 1);
 
@@ -104,9 +107,21 @@ class ResizeImage implements ShouldQueue
                     })->values()->all(),
                 ];
 
-                AsynClient::postJson($this->webhook, $payload);
+                $this->client()->postJson($this->webhook, $payload);
 
                 \Storage::disk('shared')->deleteDirectory($this->uuid);
             });
+    }
+
+    /**
+     * @return AsyncClient
+     */
+    private function client(): AsyncClient
+    {
+        if (!$this->client) {
+            $this->client = new AsyncClient;
+        }
+
+        return $this->client;
     }
 }

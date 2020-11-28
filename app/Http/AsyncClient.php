@@ -2,9 +2,11 @@
 
 namespace App\Http;
 
-class AsynClient
+use Illuminate\Support\Facades\Http;
+
+class AsyncClient
 {
-    public static function postJson($url, $params, $headers = [])
+    public function postJson($url, $params, $headers = [])
     {
         $body = json_encode($params, JSON_THROW_ON_ERROR);
 
@@ -30,7 +32,7 @@ class AsynClient
             'Connection: Close',
             "\r\n" . $body,
         ]));
-        
+
         fwrite($handle, $payload);
         fclose($handle);
     }
