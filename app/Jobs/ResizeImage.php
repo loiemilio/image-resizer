@@ -40,7 +40,8 @@ class ResizeImage implements ShouldQueue
 
         \Storage::disk('shared')->put(
             $this->uuid,
-            $request->file('image')
+            $request->file('image'),
+            '',
         );
     }
 

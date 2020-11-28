@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::post('/', 'Controller@upload');
+Route::get('{uuid}', 'Controller@show');
 
-Route::post('webhook', function(Request $request){
-   dump($request->all());
+Route::post('webhook', function (Request $request) {
+    dump($request->all());
 });
