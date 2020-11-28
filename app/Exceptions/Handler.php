@@ -27,7 +27,7 @@ class Handler extends ExceptionHandler
             return response()->json([
                 'message' => $e->getMessage(),
                 'errors' => $e->errors(),
-            ]);
+            ], 422);
         }
 
         if ($e instanceof HttpException) {
@@ -36,6 +36,7 @@ class Handler extends ExceptionHandler
             ], $e->getStatusCode());
         }
 
+        dump($e->getMessage());
         return response()->json([
             'message' => 'Server Error',
         ], 500);

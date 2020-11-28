@@ -41,5 +41,4 @@ class Controller extends BaseController
             'uuid' => $uuid,
         ]);
     }
-
 }

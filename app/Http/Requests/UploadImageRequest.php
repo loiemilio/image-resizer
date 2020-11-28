@@ -17,17 +17,38 @@ class UploadImageRequest extends FormRequest
             'image' => [
                 'required_without:images',
                 'image',
-                'max:3000',
+                'max:' . config('resizer.max-image-size'),
+            ],
+            'images' => [
+                'required_without:image',
+                'array',
             ],
             'images.*' => [
                 'required_without:image',
                 'image',
-                'max:3000',
+                'max:' . config('resizer.max-image-size'),
             ],
             'webhook' => [
                 'sometimes',
                 'url',
             ],
+        ];
+    }
+
+    public function messages()
+    {
+        return [
+            'image.required_without' => 'Provide one between image and images parameters',
+            'images.*.required_without' => 'Provide one between image and images parameters',
+        ];
+    }
+
+    public function attributes()
+    {
+        return [
+            'image' => 'file',
+            'images.*' => 'file',
+            'images' => 'list of files',
         ];
     }
 }
