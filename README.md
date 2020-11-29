@@ -22,11 +22,13 @@ In this second instance the application acts as an ephemeral file system deletin
 	
 	`composer install`
 	
-4. Build and start the containers
+4. `cp .env.example .env`
+	
+5. Build and start the containers
 
    `docker-compose up` or `docker-compose up -d` for a detached lauch
 
-5. Send your requests to 
+6. Send your requests to 
 
    `http://127.0.0.1:8081` 
 
